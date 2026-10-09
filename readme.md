@@ -1,159 +1,103 @@
-# NotifyCX Email Client
+# notifycx
 
-A lightweight TypeScript client for sending transactional emails through the NotifyCX Email API.
+Official Node/TypeScript client for [Notify](https://notify.cx) — transactional email for apps that already render HTML.
 
-## Installation
+**Pro is $10 for 10,000 emails.** Domain auth (SPF/DKIM/DMARC), logs, and webhooks included. For IDE agents, see [`notifycx-mcp`](https://www.npmjs.com/package/notifycx-mcp).
+
+## Install
 
 ```bash
 npm install notifycx
 ```
 
-## Usage
+## Send
 
-Initialize the Client
+```ts
+import Notify from 'notifycx'
 
-```typescript
-import Notify from "notifycx";
+const notify = new Notify({ apiKey: process.env.NOTIFY_API_KEY! })
+// or: new Notify(process.env.NOTIFY_API_KEY!)
 
-const notify = new Notify("your-api-key");
+await notify.send({
+  to: 'user@example.com',
+  from: 'Acme <hello@yourdomain.com>',
+  subject: 'Reset your password',
+  html: '<p>Click to reset…</p>',
+})
 ```
 
-You can optionally specify a custom API URL during initialization:
+`html`, `message`, and `text` are accepted (first non-empty wins). Production `from` requires a [verified domain](https://notify.cx/docs/domain-verification).
 
-```typescript
-const notify = new Notify("your-api-key", "https://notify.cx/api");
+### Sandbox
+
+```ts
+await notify.sendTest({
+  to: 'you@example.com',
+  from: 'hello@yourdomain.com',
+  subject: 'API rehearsal',
+  html: '<p>Does not deliver</p>',
+})
 ```
 
-## Getting Your API Key
+### Next.js App Router
 
-Before using the client, you'll need an API key:
+```ts
+// app/api/email/route.ts
+import Notify from 'notifycx'
+import { NextResponse } from 'next/server'
 
-1. Create an account on [NotifyCX](https://notify.cx).
-2. Navigate to your credentials page
-3. Find your API key in a secure, masked input field
-4. Click the field to copy your API key to clipboard
+const notify = new Notify({ apiKey: process.env.NOTIFY_API_KEY! })
 
-Keep your API key secure and never share it publicly or commit it to version control.
-
-## Sending Basic Emails
-
-To send a basic email without a template:
-
-```typescript
-notify.sendEmail({
-  to: "recipient@example.com",
-  subject: "Hello",
-  name: "John Doe",
-  message: "Your email content here",
-});
-```
-
-### Sending Template-Based Emails
-
-To send an email using a pre-defined template:
-
-```typescript
-notify.sendEmailFromTemplate({
-  to: "recipient@example.com",
-  from: "noreply@notify.cx",
-  templateId: "<your_template_id>",
-  variables: {
-    name: "John Doe",
-    company: "Example Inc.",
-  },
-});
-```
-
-### Method Chaining
-
-You can also use method chaining if preferred:
-
-Sending a basic email:
-
-```typescript
-new Notify("<your_api_key>").sendEmail({
-  to: "recipient@example.com",
-  subject: "Hello",
-  name: "John Doe",
-  message: "Your email content here",
-});
-```
-
-Sending a template-based email:
-
-```typescript
-new Notify("<your_api_key>").sendEmailFromTemplate({
-  to: "recipient@example.com",
-  from: "noreply@notify.cx",
-  templateId: "<your_template_id>",
-  variables: {
-    name: "John Doe",
-    company: "Example Inc.",
-  },
-});
-```
-
-## API Reference
-
-### SendEmailParams
-
-Parameters for sending a basic email:
-
-- `to` (string): Recipient email address
-- `subject` (string): Email subject line
-- `name` (string): Recipient name
-- `message` (string): Email content
-
-### SendEmailFromTemplateParams
-
-Parameters for sending a template-based email:
-
-- `to` (string): Recipient email address
-- `from` (string): Sender email address (optional)
-- `templateId` (string): ID of the template to use
-- `variables` (object): Variables to use in the template (optional)
-
-### SendTestEmailParams
-
-Parameters for sending a basic test email:
-
-- `to` (string): Recipient email address
-- `subject` (string): Email subject line
-- `name` (string): Recipient name
-- `message` (string): Email content
-
-### SendTestEmailFromTemplateParams
-
-Parameters for sending a template-based testemail:
-
-- `to` (string): Recipient email address
-- `from` (string): Sender email address (optional)
-- `templateId` (string): ID of the template to use
-- `variables` (object): Variables to use in the template (optional)
-
-## Error Handling
-
-The client includes built-in error handling. Both `sendEmail` and `sendEmailFromTemplate` methods will throw an error if the API request fails:
-
-```typescript
-try {
-  await notify.sendEmail({
-    to: "recipient@example.com",
-    subject: "Hello",
-    name: "John Doe",
-    message: "Your email content here",
-  });
-} catch (error) {
-  console.error("Failed to send email:", error);
+export async function POST(req: Request) {
+  const { to, subject, html } = await req.json()
+  const result = await notify.send({
+    to,
+    from: 'Acme <hello@yourdomain.com>',
+    subject,
+    html,
+  })
+  return NextResponse.json(result)
 }
 ```
 
-## License
+## Domains, webhooks, usage
 
-This project is private and not open source yet.
+```ts
+await notify.addDomain({ domain: 'yourdomain.com' })
+await notify.checkDomain('yourdomain.com')
+await notify.listDomains()
+await notify.getDomain('yourdomain.com')
 
-## Author
+await notify.createWebhook({
+  webhookUrl: 'https://example.com/hooks/notify',
+  subscribedEvents: ['Delivery', 'Bounce'],
+  domainId: '…', // verified domain id from listDomains
+})
+await notify.listWebhooks()
+await notify.testWebhook({
+  webhookUrl: 'https://example.com/hooks/notify',
+  eventType: 'Delivery',
+})
 
-[Notify](https://notify.cx)
+await notify.getUsage()
+await notify.listApiKeys() // metadata / prefix only — never the full secret
+```
 
-For more information and detailed documentation, visit [notify.cx/docs](https://notify.cx/docs).
+## Errors
+
+Failed requests throw `NotifyError` with `status` and `body` so agents and apps can fix the issue (missing key, unverified domain, sandbox lock).
+
+## Breaking changes in 1.0
+
+- Calls `POST /api/email/send` (current API), not legacy template endpoints
+- Requires `from`; drops required `name` and template methods
+- Prefer `html` in examples; `message` / `text` still work
+
+Plain `fetch` still works — this package is optional convenience for Node/TypeScript.
+
+## Links
+
+- [Docs](https://notify.cx/docs/how-to-use-notify-sdk)
+- [Quick start](https://notify.cx/docs/quick-start-guide)
+- [MCP for coding agents](https://notify.cx/mcp)
+- [Pricing](https://notify.cx/pricing)

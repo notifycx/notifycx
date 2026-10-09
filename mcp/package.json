@@ -1,0 +1,48 @@
+{
+  "name": "notifycx-mcp",
+  "version": "1.1.0",
+  "description": "Official MCP server for Notify — transactional email tools for coding agents",
+  "type": "module",
+  "bin": {
+    "notifycx-mcp": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "notify",
+    "mcp",
+    "model-context-protocol",
+    "transactional-email",
+    "cursor",
+    "claude"
+  ],
+  "homepage": "https://notify.cx/mcp",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sunil-sandhu/notifycx.git",
+    "directory": "mcp"
+  },
+  "author": "notify.cx",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "notifycx": "^1.1.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.8.1",
+    "tsup": "^8.0.1",
+    "typescript": "^5.6.3"
+  }
+}

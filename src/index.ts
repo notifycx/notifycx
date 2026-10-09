@@ -1,162 +1,276 @@
-// TODO, ensure every function returns { data, error }
+export type NotifyClientId = 'sdk' | 'mcp' | (string & {});
 
-// src/index.ts
+export type NotifyClientOptions = {
+  apiKey: string;
+  /** Defaults to https://notify.cx */
+  baseUrl?: string;
+  /**
+   * Identifies this client for Notify telemetry (`X-Notify-Client`).
+   * Defaults to `sdk`. Pass `mcp` from notifycx-mcp.
+   */
+  client?: NotifyClientId;
+};
 
-interface SendEmailParams {
-  subject: string;
+export type SendEmailInput = {
   to: string;
-  name: string;
-  message: string;
+  from: string;
+  subject: string;
+  /** Preferred body field (HTML or plain text). Aliases: message, text. */
+  html?: string;
+  message?: string;
+  text?: string;
+};
+
+export type SendEmailResult = {
+  success: boolean;
+  data?: {
+    messageId?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+};
+
+export type AddDomainInput = {
+  domain: string;
+  dnsProvider?:
+    | 'vercel'
+    | 'cloudflare'
+    | 'squarespace'
+    | 'namecheap'
+    | 'godaddy'
+    | 'route53'
+    | 'other';
+};
+
+export type CreateWebhookInput = {
+  webhookUrl: string;
+  subscribedEvents: Array<
+    | 'Bounce'
+    | 'Click'
+    | 'Complaint'
+    | 'Delivery'
+    | 'DeliveryDelay'
+    | 'Open'
+    | 'Send'
+  >;
+  domainId: string;
+  matchMode?: 'domain' | 'hosts' | 'froms';
+  matchHosts?: string[];
+  matchFroms?: string[];
+};
+
+export type UpdateWebhookInput = Partial<CreateWebhookInput>;
+
+export type TestWebhookInput = {
+  webhookUrl: string;
+  eventType:
+    | 'Bounce'
+    | 'Click'
+    | 'Complaint'
+    | 'Delivery'
+    | 'DeliveryDelay'
+    | 'Open'
+    | 'Send';
+  domainId?: string;
+};
+
+export class NotifyError extends Error {
+  status: number;
+  body: unknown;
+
+  constructor(message: string, status: number, body: unknown) {
+    super(message);
+    this.name = 'NotifyError';
+    this.status = status;
+    this.body = body;
+  }
 }
 
-interface SendEmailFromTemplateParams {
-  templateId: string;
-  from?: string;
-  to: string;
-  variables?: Record<string, string>;
+/** Keep in sync with package.json version (sent as X-Notify-Client-Version). */
+export const NOTIFYCX_VERSION = '1.1.0';
+
+function resolveBody(input: SendEmailInput): string {
+  const body = [input.html, input.message, input.text].find(
+    (value): value is string => typeof value === 'string' && value.length > 0
+  );
+  if (!body) {
+    throw new Error(
+      'Notify send requires one of html, message, or text (non-empty string)'
+    );
+  }
+  return body;
+}
+
+function normalizeOptions(
+  apiKeyOrOptions: string | NotifyClientOptions
+): NotifyClientOptions {
+  if (typeof apiKeyOrOptions === 'string') {
+    return { apiKey: apiKeyOrOptions };
+  }
+  return apiKeyOrOptions;
 }
 
 export class Notify {
-  public readonly apiKey: string;
-  public readonly apiUrl: string;
+  private apiKey: string;
+  private baseUrl: string;
+  private client: string;
 
-  constructor(apiKey: string, apiUrl = "https://notify.cx/api") {
-    if (!apiKey) {
-      throw new Error("API key is required");
+  constructor(apiKeyOrOptions: string | NotifyClientOptions) {
+    const options = normalizeOptions(apiKeyOrOptions);
+    if (!options.apiKey) {
+      throw new Error('Notify requires an apiKey');
     }
-    this.apiKey = apiKey;
-    this.apiUrl = apiUrl;
+    this.apiKey = options.apiKey;
+    this.baseUrl = (options.baseUrl ?? 'https://notify.cx').replace(/\/$/, '');
+    this.client = options.client?.trim() || 'sdk';
   }
 
-  async sendEmail(
-    params: SendEmailParams
-  ): Promise<{ success: boolean; message: string }> {
-    try {
-      const response = await fetch(`${this.apiUrl}/send-email`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": this.apiKey,
-        },
-        body: JSON.stringify(params),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || response.statusText);
-      }
-
-      return data;
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        throw new Error(`Failed to send email: ${error.message}`);
-      }
-      throw new Error("Failed to send email: An unknown error occurred");
-    }
+  private requestHeaders(
+    extra?: Record<string, string>
+  ): Record<string, string> {
+    return {
+      'x-api-key': this.apiKey,
+      'X-Notify-Client': this.client,
+      'X-Notify-Client-Version': NOTIFYCX_VERSION,
+      'User-Agent': `notifycx/${NOTIFYCX_VERSION}`,
+      ...extra
+    };
   }
 
-  async sendTestEmail(
-    params: SendEmailParams
-  ): Promise<{ success: boolean; message: string }> {
-    try {
-      const response = await fetch(`${this.apiUrl}/test/send-email`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": this.apiKey,
-        },
-        body: JSON.stringify(params),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || response.statusText);
-      }
-
-      return data;
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        throw new Error(`Failed to send test email: ${error.message}`);
-      }
-      throw new Error("Failed to send test email: An unknown error occurred");
-    }
+  /** Production send → POST /api/email/send */
+  async send(input: SendEmailInput): Promise<SendEmailResult> {
+    return this.request('/api/email/send', input);
   }
 
-  async sendEmailFromTemplate(
-    params: SendEmailFromTemplateParams
-  ): Promise<{ success: boolean; message: string }> {
-    try {
-      const response = await fetch(`${this.apiUrl}/send-email-from-template`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": this.apiKey,
-        },
-        body: JSON.stringify({
-          templateId: params.templateId,
-          from: params?.from,
-          to: params.to,
-          variables: params?.variables,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || response.statusText);
-      }
-
-      return data;
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        throw new Error(`Failed to send email from template: ${error.message}`);
-      }
-      throw new Error(
-        "Failed to send email from template: An unknown error occurred"
-      );
-    }
+  /** Sandbox / API rehearsal → POST /api/email/send/test (non-delivering) */
+  async sendTest(input: SendEmailInput): Promise<SendEmailResult> {
+    return this.request('/api/email/send/test', input);
   }
 
-  async sendTestEmailFromTemplate(
-    params: SendEmailFromTemplateParams
-  ): Promise<{ success: boolean; message: string }> {
-    try {
-      const response = await fetch(
-        `${this.apiUrl}/test/send-email-from-template`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-api-key": this.apiKey,
-          },
-          body: JSON.stringify({
-            templateId: params.templateId,
-            from: params?.from,
-            to: params.to,
-            variables: params?.variables,
-          }),
-        }
-      );
+  /** List verified/pending domains → GET /api/email/domains */
+  async listDomains(): Promise<unknown> {
+    return this.get('/api/email/domains');
+  }
 
-      const data = await response.json();
+  /** Domain detail → GET /api/email/domains/:domain */
+  async getDomain(domain: string): Promise<unknown> {
+    return this.get(`/api/email/domains/${encodeURIComponent(domain)}`);
+  }
 
-      if (!response.ok) {
-        throw new Error(data.message || response.statusText);
-      }
+  /** Add domain + start verification → POST /api/email/domains */
+  async addDomain(input: AddDomainInput): Promise<unknown> {
+    return this.json('POST', '/api/email/domains', input);
+  }
 
-      return data;
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        throw new Error(
-          `Failed to send test email from template: ${error.message}`
-        );
-      }
-      throw new Error(
-        "Failed to send test email from template: An unknown error occurred"
-      );
+  /** Poll SES verification → POST /api/email/domains/:domain/check */
+  async checkDomain(domain: string): Promise<unknown> {
+    return this.json(
+      'POST',
+      `/api/email/domains/${encodeURIComponent(domain)}/check`
+    );
+  }
+
+  /** Recent delivery logs → GET /api/email/logs */
+  async listLogs(query?: {
+    page?: number;
+    limit?: number;
+    eventType?: string;
+  }): Promise<unknown> {
+    const params = new URLSearchParams();
+    if (query?.page != null) params.set('page', String(query.page));
+    if (query?.limit != null) params.set('limit', String(query.limit));
+    if (query?.eventType) params.set('eventType', query.eventType);
+    const qs = params.toString();
+    return this.get(`/api/email/logs${qs ? `?${qs}` : ''}`);
+  }
+
+  /** Usage / quota → GET /api/email/usage */
+  async getUsage(): Promise<unknown> {
+    return this.get('/api/email/usage');
+  }
+
+  /** List API key metadata (prefix only) → GET /api/email/api-keys */
+  async listApiKeys(): Promise<unknown> {
+    return this.get('/api/email/api-keys');
+  }
+
+  /** List webhooks → GET /api/webhooks */
+  async listWebhooks(): Promise<unknown> {
+    return this.get('/api/webhooks');
+  }
+
+  /** Get webhook → GET /api/webhooks/:id */
+  async getWebhook(id: string): Promise<unknown> {
+    return this.get(`/api/webhooks/${encodeURIComponent(id)}`);
+  }
+
+  /** Create webhook → POST /api/webhooks */
+  async createWebhook(input: CreateWebhookInput): Promise<unknown> {
+    return this.json('POST', '/api/webhooks', input);
+  }
+
+  /** Update webhook → PUT /api/webhooks/:id */
+  async updateWebhook(
+    id: string,
+    input: UpdateWebhookInput
+  ): Promise<unknown> {
+    return this.json('PUT', `/api/webhooks/${encodeURIComponent(id)}`, input);
+  }
+
+  /** Delete webhook → DELETE /api/webhooks/:id */
+  async deleteWebhook(id: string): Promise<unknown> {
+    return this.json('DELETE', `/api/webhooks/${encodeURIComponent(id)}`);
+  }
+
+  /** Test webhook delivery → POST /api/webhooks/test */
+  async testWebhook(input: TestWebhookInput): Promise<unknown> {
+    return this.json('POST', '/api/webhooks/test', input);
+  }
+
+  private async request(
+    path: string,
+    input: SendEmailInput
+  ): Promise<SendEmailResult> {
+    const message = resolveBody(input);
+    return this.json('POST', path, {
+      to: input.to,
+      from: input.from,
+      subject: input.subject,
+      message
+    }) as Promise<SendEmailResult>;
+  }
+
+  private async get(path: string): Promise<unknown> {
+    return this.json('GET', path);
+  }
+
+  private async json(
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+    path: string,
+    body?: unknown
+  ): Promise<unknown> {
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      method,
+      headers: this.requestHeaders(
+        body !== undefined ? { 'Content-Type': 'application/json' } : undefined
+      ),
+      body: body !== undefined ? JSON.stringify(body) : undefined
+    });
+
+    const responseBody = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      const detail =
+        responseBody &&
+        typeof responseBody === 'object' &&
+        'error' in responseBody &&
+        typeof (responseBody as { error: unknown }).error === 'string'
+          ? (responseBody as { error: string }).error
+          : `Notify request failed (${response.status})`;
+      throw new NotifyError(detail, response.status, responseBody);
     }
+
+    return responseBody ?? { success: true };
   }
 }
 

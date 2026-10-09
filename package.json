@@ -1,7 +1,7 @@
 {
   "name": "notifycx",
-  "version": "0.2.6",
-  "description": "NotifyCX API Client",
+  "version": "1.1.0",
+  "description": "Official Node/TypeScript client for the Notify transactional email API",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -14,43 +14,39 @@
     }
   },
   "scripts": {
-    "test": "ts-node src/test.ts",
-    "build": "tsup src/index.ts --format cjs,esm --dts"
+    "test": "tsx --test src/index.test.ts",
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
+    "notify",
     "notifycx",
     "email",
-    "api",
-    "client",
     "transactional-email",
-    "send-email",
-    "email-sending",
-    "developer-tools",
-    "programmatic-email",
     "email-api",
-    "send-email-api",
-    "smtp",
-    "notifications",
-    "email-templates",
-    "integration",
-    "webhooks",
-    "javascript",
     "typescript",
-    "nodejs",
-    "backend",
-    "saas",
-    "cloud-email",
-    "email-service"
+    "nodejs"
   ],
   "files": [
-    "dist"
+    "dist",
+    "readme.md"
   ],
+  "homepage": "https://notify.cx/docs/how-to-use-notify-sdk",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sunil-sandhu/notifycx.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sunil-sandhu/notifycx/issues"
+  },
   "author": "notify.cx",
   "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "devDependencies": {
     "@types/node": "^22.8.1",
-    "dotenv": "^16.4.7",
-    "ts-node": "^10.9.2",
+    "tsx": "^4.19.2",
     "typescript": "^5.6.3",
     "tsup": "^8.0.1"
   }
