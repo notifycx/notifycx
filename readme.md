@@ -1,5 +1,10 @@
 # notifycx
 
+[![npm](https://img.shields.io/npm/v/notifycx.svg)](https://www.npmjs.com/package/notifycx)
+[![CI](https://github.com/notifycx/notifycx/actions/workflows/ci.yml/badge.svg)](https://github.com/notifycx/notifycx/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/docs-notify.cx-111.svg)](https://notify.cx/docs/how-to-use-notify-sdk)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
 Official Node/TypeScript client for [Notify](https://notify.cx) — a deliberately minimal **transactional email API**.
 
 Notify sends email with one HTTPS request. You (or your AI) already render the HTML; Notify delivers it. Domain auth (SPF/DKIM/DMARC), logs, and webhooks included.
