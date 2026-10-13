@@ -1,0 +1,225 @@
+openapi: 3.0.0
+info:
+  title: Notify API
+  description: Email infrastructure API — send + observe. Canonical send path: POST /api/email/send.
+  version: 1.0.0
+servers:
+  - url: https://notify.cx
+    description: Live Public API
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+  schemas:
+    SendEmailRequest:
+      type: object
+      required: [subject, to, from]
+      description: >
+        Provide exactly one body field among html, message, or text
+        (priority if multiple: message → html → text). Prefer html in new integrations.
+      properties:
+        subject: { type: string }
+        to: { type: string, format: email }
+        html:
+          type: string
+          description: HTML or plain-text body (preferred alias). Mapped to message server-side.
+        message:
+          type: string
+          description: Canonical body field — plain text or HTML (max 100000 characters).
+        text:
+          type: string
+          description: Plain-text (or HTML) body alias. Mapped to message server-side.
+        from:
+          type: string
+          description: Required. Bare email or Name <email@verified-domain.com>. Verified apex covers subdomains. Use sent-with@mail.notify.cx for the Notify platform sender.
+          example: Circuit <noreply@your-verified-domain.com>
+    CreateWebhookRequest:
+      type: object
+      required: [webhookUrl, subscribedEvents, domainId]
+      properties:
+        webhookUrl:
+          type: string
+          format: uri
+          description: HTTPS endpoint to receive webhook events
+        subscribedEvents:
+          type: array
+          items:
+            type: string
+            enum: [Send, Delivery, DeliveryDelay, Open, Click, Bounce, Complaint]
+        domainId:
+          type: string
+          format: uuid
+          description: Verified sending domain UUID. Events fire for this domain and its subdomains.
+    Webhook:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        webhookUrl: { type: string, format: uri }
+        subscribedEvents:
+          type: array
+          items: { type: string }
+        domainId: { type: string, format: uuid }
+        domain: { type: string, description: Verified domain name }
+        createdAt: { type: string, format: date-time }
+security:
+  - ApiKeyAuth: []
+paths:
+  /api/email/send:
+    post:
+      summary: Send an email
+      operationId: sendEmail
+      tags: [Email]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendEmailRequest'
+      responses:
+        '200': { description: Email sent }
+  /api/email/send/test:
+    post:
+      summary: Sandbox/test send (same body as /api/email/send)
+      operationId: sendTestEmail
+      tags: [Email]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendEmailRequest'
+      responses:
+        '200': { description: Accepted }
+  /api/email/domains:
+    get:
+      summary: List domains
+      operationId: listDomains
+      tags: [Domains]
+      responses:
+        '200': { description: OK }
+    post:
+      summary: Add domain and start verification
+      description: >
+        Starts SES identity + DKIM verification and returns DNS records
+        (verification token, DKIM tokens, SPF, DMARC). Same behaviour as
+        POST /api/verify-domain (dashboard alias).
+      operationId: addDomain
+      tags: [Domains]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [domain]
+              properties:
+                domain: { type: string }
+                dnsProvider:
+                  type: string
+                  enum: [vercel, cloudflare, squarespace, namecheap, godaddy, route53, other]
+      responses:
+        '200': { description: Verification started }
+        '400': { description: Bad request }
+        '401': { description: Unauthorized }
+        '403': { description: Plan limit or blocked }
+  /api/email/domains/{domain}:
+    get:
+      summary: Get domain
+      operationId: getDomain
+      tags: [Domains]
+      parameters:
+        - name: domain
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+        '401': { description: Unauthorized }
+        '404': { description: Not found }
+  /api/email/domains/{domain}/check:
+    post:
+      summary: Check domain verification
+      description: >
+        Polls SES for SPF/DKIM status and updates the domain row.
+        Same behaviour as POST /api/check-domain-verification (dashboard alias).
+      operationId: checkDomain
+      tags: [Domains]
+      parameters:
+        - name: domain
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Status payload }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+  /api/webhooks:
+    get:
+      summary: List webhooks
+      description: Returns webhook subscriptions with domainId and domain for each.
+      operationId: listWebhooks
+      tags: [Webhooks]
+      responses:
+        '200': { description: OK }
+    post:
+      summary: Create webhook
+      description: Creates a domain-scoped webhook. domainId must be a verified sending domain; events cover that domain and subdomains.
+      operationId: createWebhook
+      tags: [Webhooks]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWebhookRequest'
+      responses:
+        '201': { description: Created }
+  /api/webhooks/{id}:
+    get:
+      summary: Get webhook
+      operationId: getWebhook
+      tags: [Webhooks]
+      responses:
+        '200': { description: OK }
+    put:
+      summary: Update webhook
+      operationId: updateWebhook
+      tags: [Webhooks]
+      responses:
+        '200': { description: OK }
+    delete:
+      summary: Delete webhook
+      operationId: deleteWebhook
+      tags: [Webhooks]
+      responses:
+        '200': { description: OK }
+  /api/webhooks/test:
+    post:
+      summary: Test webhook
+      operationId: testWebhook
+      tags: [Webhooks]
+      responses:
+        '200': { description: OK }
+  /api/email/logs:
+    get:
+      summary: List email logs
+      operationId: listEmailLogs
+      tags: [Logs]
+      responses:
+        '200': { description: OK }
+  /api/email/usage:
+    get:
+      summary: Get usage
+      operationId: getUsage
+      tags: [Usage]
+      responses:
+        '200': { description: OK }
+  /api/email/api-keys:
+    get:
+      summary: List API keys
+      operationId: listApiKeys
+      tags: [Auth]
+      responses:
+        '200': { description: OK }

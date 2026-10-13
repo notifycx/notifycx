@@ -34,10 +34,10 @@
   "homepage": "https://notify.cx/docs/how-to-use-notify-sdk",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/sunil-sandhu/notifycx.git"
+    "url": "git+https://github.com/notifycx/notifycx.git"
   },
   "bugs": {
-    "url": "https://github.com/sunil-sandhu/notifycx/issues"
+    "url": "https://github.com/notifycx/notifycx/issues"
   },
   "author": "notify.cx",
   "license": "MIT",

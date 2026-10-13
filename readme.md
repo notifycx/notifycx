@@ -1,23 +1,48 @@
 # notifycx
 
-Official Node/TypeScript client for [Notify](https://notify.cx) — transactional email for apps that already render HTML.
+Official Node/TypeScript client for [Notify](https://notify.cx) — a deliberately minimal **transactional email API**.
 
-**Pro is $10 for 10,000 emails.** Domain auth (SPF/DKIM/DMARC), logs, and webhooks included. For IDE agents, see [`notifycx-mcp`](https://www.npmjs.com/package/notifycx-mcp).
+Notify sends email with one HTTPS request. You (or your AI) already render the HTML; Notify delivers it. Domain auth (SPF/DKIM/DMARC), logs, and webhooks included.
 
-## Install
+**Pro is $10 for 10,000 emails** · [Pricing](https://notify.cx/pricing)
+
+## What this repo is
+
+This repository is the **official client** (`notifycx`) and **official MCP** (`notifycx-mcp`). It talks to `https://notify.cx` over HTTPS.
+
+It does **not** include Notify’s server, AWS SES credentials, or any way to use Notify’s infrastructure without **your own** API key from the [dashboard](https://notify.cx/dashboard/credentials). Forks cannot send on Notify’s AWS account.
+
+## Three ways to send
+
+| Context | Prefer |
+|---------|--------|
+| App / CI / production (Node/TS) | `npm i notifycx` (this package) |
+| App / any language | Native `fetch` / curl — see [`examples/fetch-send`](./examples/fetch-send) |
+| IDE coding agents | [`notifycx-mcp`](./mcp) — `npx -y notifycx-mcp` with `NOTIFY_API_KEY` |
+
+## First email in minutes
+
+1. Create an account at [notify.cx](https://notify.cx) and copy an API key.
+2. Install and send (sandbox first if you have not verified a domain yet):
 
 ```bash
 npm install notifycx
 ```
 
-## Send
-
 ```ts
 import Notify from 'notifycx'
 
 const notify = new Notify({ apiKey: process.env.NOTIFY_API_KEY! })
-// or: new Notify(process.env.NOTIFY_API_KEY!)
 
+// Non-delivering API rehearsal (no SES):
+await notify.sendTest({
+  to: 'you@example.com',
+  from: 'hello@yourdomain.com',
+  subject: 'API rehearsal',
+  html: '<p>Does not deliver</p>',
+})
+
+// Production (requires verified domain for custom from):
 await notify.send({
   to: 'user@example.com',
   from: 'Acme <hello@yourdomain.com>',
@@ -26,78 +51,73 @@ await notify.send({
 })
 ```
 
-`html`, `message`, and `text` are accepted (first non-empty wins). Production `from` requires a [verified domain](https://notify.cx/docs/domain-verification).
+Prefer `html` in new code. `message` and `text` are also accepted.
 
-### Sandbox
+### Auth
 
-```ts
-await notify.sendTest({
-  to: 'you@example.com',
-  from: 'hello@yourdomain.com',
-  subject: 'API rehearsal',
-  html: '<p>Does not deliver</p>',
+- Header: `x-api-key` (the SDK sets this for you)
+- Env: `NOTIFY_API_KEY` — never commit real keys; never put keys in client bundles
+- Optional: `NOTIFY_BASE_URL` / `baseUrl` for local mocks only (default `https://notify.cx`)
+
+### Responses
+
+Success: `{ success: true, data: { messageId: "…" } }`  
+Failure: `{ success: false, error: "…", code: "…" }` — the SDK throws `NotifyError` with `status` and `body`.
+
+### Security
+
+- Call Notify only from **server-side** code (Route Handlers, Workers, Actions, backends).
+- Prefer domain-locked `sending_access` keys in apps; use `full_access` for MCP / dashboard management.
+- No AWS keys belong in this client. SES runs on Notify’s servers after your authenticated API request.
+
+## Native fetch (no SDK)
+
+See [`examples/fetch-send`](./examples/fetch-send) or:
+
+```js
+const res = await fetch('https://notify.cx/api/email/send', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-api-key': process.env.NOTIFY_API_KEY,
+  },
+  body: JSON.stringify({
+    to: 'user@example.com',
+    from: 'noreply@your-verified-domain.com',
+    subject: 'Hello',
+    html: '<p>Sent with fetch.</p>',
+  }),
 })
 ```
 
-### Next.js App Router
+## OpenAPI
 
-```ts
-// app/api/email/route.ts
-import Notify from 'notifycx'
-import { NextResponse } from 'next/server'
+- Vendored copy: [`openapi/openapi.yaml`](./openapi/openapi.yaml) (synced from Notify)
+- Live: [https://notify.cx/openapi.yaml](https://notify.cx/openapi.yaml)
+- Interactive: [https://notify.cx/api-docs](https://notify.cx/api-docs)
 
-const notify = new Notify({ apiKey: process.env.NOTIFY_API_KEY! })
+## MCP for coding agents
 
-export async function POST(req: Request) {
-  const { to, subject, html } = await req.json()
-  const result = await notify.send({
-    to,
-    from: 'Acme <hello@yourdomain.com>',
-    subject,
-    html,
-  })
-  return NextResponse.json(result)
-}
+```bash
+npx -y notifycx-mcp
 ```
 
-## Domains, webhooks, usage
-
-```ts
-await notify.addDomain({ domain: 'yourdomain.com' })
-await notify.checkDomain('yourdomain.com')
-await notify.listDomains()
-await notify.getDomain('yourdomain.com')
-
-await notify.createWebhook({
-  webhookUrl: 'https://example.com/hooks/notify',
-  subscribedEvents: ['Delivery', 'Bounce'],
-  domainId: '…', // verified domain id from listDomains
-})
-await notify.listWebhooks()
-await notify.testWebhook({
-  webhookUrl: 'https://example.com/hooks/notify',
-  eventType: 'Delivery',
-})
-
-await notify.getUsage()
-await notify.listApiKeys() // metadata / prefix only — never the full secret
-```
-
-## Errors
-
-Failed requests throw `NotifyError` with `status` and `body` so agents and apps can fix the issue (missing key, unverified domain, sandbox lock).
-
-## Breaking changes in 1.0
-
-- Calls `POST /api/email/send` (current API), not legacy template endpoints
-- Requires `from`; drops required `name` and template methods
-- Prefer `html` in examples; `message` / `text` still work
-
-Plain `fetch` still works — this package is optional convenience for Node/TypeScript.
+Set `NOTIFY_API_KEY` in your MCP server env. Details: [mcp/README.md](./mcp/README.md) · [notify.cx/mcp](https://notify.cx/mcp)
 
 ## Links
 
-- [Docs](https://notify.cx/docs/how-to-use-notify-sdk)
+- [SDK docs](https://notify.cx/docs/how-to-use-notify-sdk)
 - [Quick start](https://notify.cx/docs/quick-start-guide)
-- [MCP for coding agents](https://notify.cx/mcp)
-- [Pricing](https://notify.cx/pricing)
+- [Domain verification](https://notify.cx/docs/domain-verification)
+- [Runnable examples](https://github.com/email-examples/transactional-email-examples)
+- [Coding-agent skill](https://github.com/email-agents/notify)
+- [Support](https://notify.cx/contact)
+
+## Develop
+
+```bash
+npm test
+npm run build
+```
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) and [MAINTAINING.md](./MAINTAINING.md).

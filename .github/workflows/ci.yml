@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: Example mocked tests
+        run: node --test examples/fetch-send/send.test.mjs
+      - name: MCP package install and build
+        working-directory: mcp
+        run: |
+          npm ci
+          npm run build
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan for obvious secrets in tracked files
+        run: |
+          set -euo pipefail
+          # Fail if tracked files look like they contain cloud credentials or private keys
+          if git grep -I -E 'AKIA[0-9A-Z]{16}|BEGIN (RSA |OPENSSH |EC )?PRIVATE KEY|aws_secret_access_key\s*=\s*.+' -- . \
+            ':(exclude)package-lock.json' ':(exclude)mcp/package-lock.json'; then
+            echo "Possible secret pattern found in tracked files"
+            exit 1
+          fi
+          # Fail if any .env with values is tracked
+          if git ls-files | grep -E '(^|/)\.env($|\.)' | grep -v '\.env\.example'; then
+            echo "Tracked .env file found"
+            exit 1
+          fi
+          echo "Secret scan OK"

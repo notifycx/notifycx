@@ -27,7 +27,7 @@
   "homepage": "https://notify.cx/mcp",
   "repository": {
     "type": "git",
-    "url": "https://github.com/sunil-sandhu/notifycx.git",
+    "url": "https://github.com/notifycx/notifycx.git",
     "directory": "mcp"
   },
   "author": "notify.cx",
