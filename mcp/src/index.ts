@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import Notify, { NotifyError } from 'notifycx';
+import Notify, { NotifyError, NOTIFYCX_VERSION } from 'notifycx';
 import { z } from 'zod';
 
 function baseUrl(): string | undefined {
@@ -122,7 +122,8 @@ const webhookWriteShape = {
 
 const server = new McpServer({
   name: 'notifycx-mcp',
-  version: '1.2.0'
+  // Keep MCP package.json version aligned with notifycx (NOTIFYCX_VERSION).
+  version: NOTIFYCX_VERSION
 });
 
 server.tool(

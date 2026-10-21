@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it, mock } from 'node:test';
-import { Notify, NotifyError } from './index';
+import { Notify, NotifyError, NOTIFYCX_VERSION } from './index';
 
 const originalFetch = globalThis.fetch;
 
@@ -20,8 +20,23 @@ function mockFetch(status: number, body: unknown) {
 }
 
 describe('Notify', () => {
-  it('requires an apiKey', () => {
-    assert.throws(() => new Notify(''), /Notify requires an apiKey/);
+  it('allows constructing without an apiKey for bootstrap helpers', () => {
+    const notify = new Notify({});
+    assert.ok(notify);
+  });
+
+  it('requires an apiKey for authenticated methods', async () => {
+    const notify = new Notify({});
+    await assert.rejects(
+      () =>
+        notify.send({
+          to: 'a@b.com',
+          from: 'c@d.com',
+          subject: 'x',
+          html: 'y'
+        }),
+      /Notify requires an apiKey/
+    );
   });
 
   it('sends with html mapped to message', async () => {
@@ -77,8 +92,8 @@ describe('Notify', () => {
     const [, init] = fn.mock.calls[0].arguments as [string, RequestInit];
     const headers = init.headers as Record<string, string>;
     assert.equal(headers['X-Notify-Client'], 'sdk');
-    assert.equal(headers['X-Notify-Client-Version'], '1.1.0');
-    assert.equal(headers['User-Agent'], 'notifycx/1.1.0');
+    assert.equal(headers['X-Notify-Client-Version'], NOTIFYCX_VERSION);
+    assert.equal(headers['User-Agent'], `notifycx/${NOTIFYCX_VERSION}`);
   });
 
   it('allows client override for mcp', async () => {
