@@ -1,13 +1,22 @@
+#!/usr/bin/env node
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import Notify, { NotifyError } from 'notifycx';
 import { z } from 'zod';
 
+function baseUrl(): string | undefined {
+  return process.env.NOTIFY_BASE_URL;
+}
+
+function optionalApiKey(): string | undefined {
+  return process.env.NOTIFY_API_KEY;
+}
+
 function requireApiKey(): string {
-  const apiKey = process.env.NOTIFY_API_KEY;
+  const apiKey = optionalApiKey();
   if (!apiKey) {
     throw new Error(
-      'Missing NOTIFY_API_KEY. Set it in your MCP server env (dashboard → Credentials).'
+      'Missing NOTIFY_API_KEY. Run bootstrap_start + bootstrap_confirm first, then set NOTIFY_API_KEY in MCP env to the returned api_key (never paste secrets into chat).'
     );
   }
   return apiKey;
@@ -16,7 +25,7 @@ function requireApiKey(): string {
 function client(): Notify {
   return new Notify({
     apiKey: requireApiKey(),
-    baseUrl: process.env.NOTIFY_BASE_URL,
+    baseUrl: baseUrl(),
     client: 'mcp'
   });
 }
@@ -113,8 +122,63 @@ const webhookWriteShape = {
 
 const server = new McpServer({
   name: 'notifycx-mcp',
-  version: '1.1.0'
+  version: '1.2.0'
 });
+
+server.tool(
+  'bootstrap_start',
+  'Start Notify agent signup or key recovery without the dashboard. Sends a 6-digit email OTP. No NOTIFY_API_KEY required. Ask the user to paste the code, then call bootstrap_confirm. Requires acceptTerms: true (https://notify.cx/terms).',
+  {
+    email: z.string().email().describe('User email for the Notify account'),
+    intent: z
+      .enum(['signup', 'recover'])
+      .optional()
+      .describe('signup (default) or recover existing account'),
+    acceptTerms: z
+      .boolean()
+      .describe('Must be true — user accepts Terms and AUP')
+  },
+  async (args) => {
+    try {
+      return ok(
+        await Notify.bootstrapStart({
+          email: args.email,
+          intent: args.intent,
+          acceptTerms: args.acceptTerms,
+          baseUrl: baseUrl()
+        })
+      );
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.tool(
+  'bootstrap_confirm',
+  'Confirm the email OTP from bootstrap_start. Returns api_key once — instruct the user to put it in MCP env NOTIFY_API_KEY (do not leave the secret in chat). Then use add_domain / send_email. No NOTIFY_API_KEY required for this call.',
+  {
+    email: z.string().email(),
+    code: z.string().regex(/^\d{6}$/).describe('6-digit code from email'),
+    intent: z.enum(['signup', 'recover']).optional(),
+    clientHint: z.string().max(64).optional().describe('e.g. cursor, chatgpt')
+  },
+  async (args) => {
+    try {
+      return ok(
+        await Notify.bootstrapConfirm({
+          email: args.email,
+          code: args.code,
+          intent: args.intent,
+          clientHint: args.clientHint,
+          baseUrl: baseUrl()
+        })
+      );
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
 
 server.tool(
   'send_email',
@@ -144,7 +208,7 @@ server.tool(
 
 server.tool(
   'list_domains',
-  'List Notify sending domains and verification status (SPF/DKIM). Use when wiring a production from address or debugging domain auth. Includes DNS tokens when present.',
+  'List Notify sending domains and verification status (SPF/DKIM). Includes structured dnsRecords (type/name/value) for the user to publish at their DNS host.',
   {},
   async () => {
     try {
@@ -157,7 +221,7 @@ server.tool(
 
 server.tool(
   'get_domain',
-  'Get one Notify sending domain by hostname, including DNS records/tokens for pending verification.',
+  'Get one Notify sending domain by hostname, including dnsRecords (type/name/value) and raw DNS tokens for pending verification. Show dnsRecords to the user so they can add them at their hosting provider.',
   {
     domain: z.string().min(1).describe('Domain hostname, e.g. example.com')
   },
@@ -172,7 +236,7 @@ server.tool(
 
 server.tool(
   'add_domain',
-  'Add a sending domain and start SPF/DKIM verification. Returns DNS records the user must add. After DNS is configured, call check_domain. Then use send_email with a from address on that domain.',
+  'Add a sending domain and start SPF/DKIM verification. Returns dnsRecords (type/name/value) the user must add at their DNS host — Notify does not publish DNS. After DNS is configured, call check_domain. Then use send_email with a from address on that domain.',
   {
     domain: z.string().min(1).describe('Domain hostname to verify, e.g. example.com'),
     dnsProvider: z
@@ -186,7 +250,7 @@ server.tool(
         'other'
       ])
       .optional()
-      .describe('Optional DNS provider hint for dashboard UX')
+      .describe('Optional DNS provider hint for host/name formatting')
   },
   async (args) => {
     try {
@@ -199,7 +263,7 @@ server.tool(
 
 server.tool(
   'check_domain',
-  'Poll SES for domain SPF/DKIM verification status after DNS records were added. Call after add_domain. When both succeed, production send_email with that from domain is unlocked.',
+  'Poll SES for domain SPF/DKIM verification status after DNS records were added. Call after add_domain. When both succeed, production send_email with that from domain is unlocked and the plan email limit lifts.',
   {
     domain: z.string().min(1).describe('Domain hostname to check')
   },
@@ -252,11 +316,73 @@ server.tool(
 
 server.tool(
   'list_api_keys',
-  'List API key metadata for the account (id, name, prefix only — never the full secret). Create or rotate keys in the Notify dashboard Credentials page.',
+  'List API key metadata for the account (id, name, prefix only — never the full secret).',
   {},
   async () => {
     try {
       return ok(await client().listApiKeys());
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.tool(
+  'create_api_key',
+  'Create an API key (full_access required). Free plan allows one key. Prefer sending_access + domainId for app keys on Pro+.',
+  {
+    name: z.string().min(1),
+    permission: z.enum(['full_access', 'sending_access']).optional(),
+    domainId: z.string().uuid().optional()
+  },
+  async (args) => {
+    try {
+      return ok(await client().createApiKey(args));
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.tool(
+  'regenerate_api_key',
+  'Rotate an API key secret by keyId. Returns the new api_key once — update NOTIFY_API_KEY / app secrets.',
+  {
+    keyId: z.string().uuid()
+  },
+  async (args) => {
+    try {
+      return ok(await client().regenerateApiKey(args.keyId));
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.tool(
+  'delete_api_key',
+  'Deactivate an API key by keyId. Cannot delete the last full_access key.',
+  {
+    keyId: z.string().uuid()
+  },
+  async (args) => {
+    try {
+      return ok(await client().deleteApiKey(args.keyId));
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.tool(
+  'create_billing_checkout',
+  'Get a Stripe Checkout URL for Pro or Scale (full_access key). User opens the URL in a browser to pay — not the Notify dashboard.',
+  {
+    plan: z.enum(['pro', 'scale']).optional()
+  },
+  async (args) => {
+    try {
+      return ok(await client().createBillingCheckout({ plan: args.plan }));
     } catch (err) {
       return fail(err);
     }

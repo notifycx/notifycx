@@ -1,6 +1,6 @@
 {
   "name": "notifycx-mcp",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Official MCP server for Notify — transactional email tools for coding agents",
   "type": "module",
   "bin": {
@@ -37,7 +37,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
-    "notifycx": "^1.1.0",
+    "notifycx": "^1.2.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {

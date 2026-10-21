@@ -6,6 +6,8 @@ Use this in Cursor, Claude Code, or other MCP hosts when a coding agent should c
 
 ## Install (Cursor)
 
+**Already have a key:**
+
 ```json
 {
   "mcpServers": {
@@ -20,23 +22,27 @@ Use this in Cursor, Claude Code, or other MCP hosts when a coding agent should c
 }
 ```
 
-Get your API key from [Credentials](https://notify.cx/dashboard/credentials). Docs: [notify.cx/mcp](https://notify.cx/mcp).
+**No key yet:** omit `NOTIFY_API_KEY`, call `bootstrap_start` → user pastes email OTP → `bootstrap_confirm` → put the returned `api_key` into MCP env. See [agent bootstrap docs](https://notify.cx/docs/agent-bootstrap-no-dashboard).
+
+Never paste API key secrets into chat logs.
 
 ## Tools
 
 | Tool | When to use |
 |------|-------------|
+| `bootstrap_start` / `bootstrap_confirm` | Sign up or recover without the dashboard (no API key required) |
 | `send_email` | Production transactional send (verified `from`) |
 | `send_test_email` | Non-delivering API rehearsal |
-| `add_domain` | Add domain + get DNS records (SPF/DKIM) |
+| `add_domain` | Add domain + structured `dnsRecords` (type/name/value) for the user to publish at their host |
 | `check_domain` | Poll verification after DNS is configured |
-| `list_domains` / `get_domain` | Domain / SPF / DKIM status |
+| `list_domains` / `get_domain` | Domain status + `dnsRecords` |
 | `list_webhooks` / `create_webhook` / `update_webhook` / `delete_webhook` / `get_webhook` / `test_webhook` | Webhook setup (Pro+) |
 | `list_email_logs` | Recent delivery logs |
 | `get_usage` | Quota / account_verified |
-| `list_api_keys` | Key metadata (prefix only — create keys in the dashboard) |
+| `list_api_keys` / `create_api_key` / `regenerate_api_key` / `delete_api_key` | Manage keys |
+| `create_billing_checkout` | Stripe Checkout URL for Pro/Scale |
 
-Typical setup path: `add_domain` → add DNS → `check_domain` → `send_email`. Optional: `create_webhook` after a verified domain.
+Typical setup path: bootstrap → `add_domain` → user publishes `dnsRecords` → `check_domain` → `send_email`.
 
 ## Pricing
 
