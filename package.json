@@ -1,6 +1,6 @@
 {
   "name": "notifycx",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Official Node/TypeScript client for the Notify transactional email API",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -16,6 +16,7 @@
   "scripts": {
     "test": "tsx --test src/index.test.ts",
     "build": "tsup src/index.ts --format cjs,esm --dts",
+    "verify": "node --test src/dist.test.ts",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
