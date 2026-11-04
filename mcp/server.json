@@ -5,12 +5,12 @@
   "description": "Transactional email for coding agents: send, test, verify domains, webhooks, logs.",
   "repository": { "url": "https://github.com/notifycx/notifycx", "source": "github", "subfolder": "mcp" },
   "websiteUrl": "https://notify.cx/mcp",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "notifycx-mcp",
-      "version": "1.2.2",
+      "version": "1.2.3",
       "transport": { "type": "stdio" },
       "environmentVariables": [
         { "name": "NOTIFY_API_KEY", "description": "Notify API key (nk_...). Optional until bootstrap_start/bootstrap_confirm returns one.", "isRequired": false, "isSecret": true, "format": "string" }

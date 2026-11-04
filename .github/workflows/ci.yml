@@ -17,13 +17,14 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      - run: npm run verify
       - name: Example mocked tests
         run: node --test examples/fetch-send/send.test.mjs
       - name: MCP package install and build
         working-directory: mcp
         run: |
           npm ci
-          npm run build
+          npm test
 
   secret-scan:
     runs-on: ubuntu-latest
