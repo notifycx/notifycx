@@ -113,7 +113,7 @@ export class NotifyError extends Error {
 }
 
 /** Keep in sync with package.json version (sent as X-Notify-Client-Version). */
-export const NOTIFYCX_VERSION = '1.2.1';
+export const NOTIFYCX_VERSION = '1.2.2';
 
 async function publicJson(
   baseUrl: string,

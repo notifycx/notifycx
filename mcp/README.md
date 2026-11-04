@@ -47,3 +47,7 @@ Typical setup path: bootstrap → `add_domain` → user publishes `dnsRecords` �
 ## Pricing
 
 Free: 1,000 emails/mo. Pro: **$10 / 10,000**. Scale: $50 / 100,000.
+
+## Publishing (maintainers)
+
+After `npm publish` for `notifycx-mcp`, register the release with the [MCP Registry](https://registry.modelcontextprotocol.io): from the `mcp/` directory, run `mcp-publisher login github` (as a notifycx org member), then `mcp-publisher publish`.
