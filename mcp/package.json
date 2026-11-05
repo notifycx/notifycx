@@ -14,7 +14,8 @@
   ],
   "scripts": {
     "build": "tsup",
-    "test": "npm run build && node --test src/dist.test.ts",
+    "test": "npm run build && tsx --test src/dist.test.ts",
+    "verify": "tsx --test src/dist.test.ts",
     "start": "node dist/index.js",
     "prepublishOnly": "npm run build"
   },
@@ -45,6 +46,7 @@
   "devDependencies": {
     "@types/node": "^22.8.1",
     "tsup": "^8.0.1",
+    "tsx": "^4.19.2",
     "typescript": "^5.6.3"
   }
 }
