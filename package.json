@@ -16,7 +16,7 @@
   "scripts": {
     "test": "tsx --test src/index.test.ts",
     "build": "tsup src/index.ts --format cjs,esm --dts",
-    "verify": "node --test src/dist.test.ts",
+    "verify": "tsx --test src/dist.test.ts",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
